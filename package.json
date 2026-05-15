@@ -1,0 +1,8 @@
+{
+  "name": "ecommerce-stripe-inventory-root",
+  "private": true,
+  "scripts": {
+    "test": "npm --prefix server test && npm --prefix client test",
+    "test:coverage": "npm --prefix server run test:coverage && npm --prefix client run test:coverage"
+  }
+}
