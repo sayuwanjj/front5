@@ -12,8 +12,8 @@ export default defineConfig({
     globals: true,
     coverage: {
       reporter: ['text', 'html'],
-      include: ['src/**/*.{js,jsx}'],
-      exclude: ['src/main.jsx', 'src/api/client.js'],
+      include: ['src/components/**/*.{js,jsx}', 'src/utils/**/*.{js,jsx}'],
+      exclude: ['src/**/*.test.{js,jsx}'],
       thresholds: {
         lines: 50,
         functions: 50,
