@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, test, vi } from 'vitest';
 
 vi.mock('../context/CartContext', () => ({ useCart: vi.fn() }));
@@ -26,7 +26,9 @@ describe('ProductCard', () => {
 
     expect(screen.getByText('Keyboard')).toBeInTheDocument();
     expect(screen.getByText('$12.99')).toBeInTheDocument();
-    fireEvent.click(screen.getByText('В корзину'));
+    await act(async () => {
+      fireEvent.click(screen.getByText('В корзину'));
+    });
 
     expect(addItem).toHaveBeenCalledWith(product, 1);
   });
