@@ -6,7 +6,7 @@ const productBody = z.object({
   category: z.string().min(2).max(120).default('other'),
   price: z.number().positive(),
   stock: z.number().int().min(0),
-  imageUrl: z.string().url().optional().or(z.literal('')),
+  imageUrl: z.string().max(3000).optional().or(z.literal('')), // Изменено: снята строгая валидация одиночного URL
   isActive: z.boolean().optional(),
 });
 

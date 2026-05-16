@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import api from '../api/client';
 import { formatMoney } from '../utils/cartStorage';
 
-const emptyForm = { name: '', description: '', category: 'other', price: '', stock: '', imageUrl: '', isActive: true };
+const emptyForm = { name: '', description: '', category: 'other', price: '', stock: '', image1: '', image2: '', image3: '', isActive: true };
 
 export default function AdminProductsPage() {
   const [products, setProducts] = useState([]);
@@ -10,7 +10,8 @@ export default function AdminProductsPage() {
   const [editingId, setEditingId] = useState(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
-  const [view, setView] = useState('list'); // Режимы: 'list' (таблица) или 'edit' (карточка)
+  const [view, setView] = useState('list');
+  const [activePreviewImage, setActivePreviewImage] = useState(0);
 
   const load = async () => {
     const response = await api.get('/products');
@@ -25,7 +26,22 @@ export default function AdminProductsPage() {
     event.preventDefault();
     setError('');
     setMessage('');
-    const payload = { ...form, price: Number(form.price), stock: Number(form.stock) };
+
+    // Собираем ссылки из трёх инпутов в одну строку через запятую
+    const joinedImages = [form.image1, form.image2, form.image3]
+      .map(url => url.trim())
+      .filter(Boolean)
+      .join(',');
+
+    const payload = {
+      name: form.name,
+      description: form.description,
+      category: form.category,
+      price: Number(form.price),
+      stock: Number(form.stock),
+      imageUrl: joinedImages,
+      isActive: form.isActive
+    };
 
     try {
       if (editingId) {
@@ -37,7 +53,7 @@ export default function AdminProductsPage() {
       }
       setForm(emptyForm);
       setEditingId(null);
-      setView('list'); // Возвращаемся к таблице после сохранения
+      setView('list');
       await load();
     } catch (err) {
       setError(err.message);
@@ -46,21 +62,28 @@ export default function AdminProductsPage() {
 
   const edit = (product) => {
     setEditingId(product.id);
+
+    // Разбиваем полученную с бэкенда строку по запятым обратно на 3 инпута
+    const imgs = product.imageUrl ? product.imageUrl.split(',').map(url => url.trim()) : [];
+
     setForm({
       name: product.name,
       description: product.description,
       category: product.category,
       price: product.price,
       stock: product.stock,
-      imageUrl: product.imageUrl || '',
+      image1: imgs[0] || '',
+      image2: imgs[1] || '',
+      image3: imgs[2] || '',
       isActive: product.isActive,
     });
-    setView('edit'); // Переключаемся в режим подробной карточки
+    setActivePreviewImage(0);
+    setView('edit');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const remove = async (id, event) => {
-    event.stopPropagation(); // Изолируем клик, чтобы не открывалось редактирование строки
+    event.stopPropagation();
     if (!window.confirm('Вы уверены, что хотите удалить этот товар?')) return;
     setError('');
     try {
@@ -71,13 +94,22 @@ export default function AdminProductsPage() {
     }
   };
 
+  // Формируем массив непустых картинок для показа превью внутри админ-формы
+  const previewImages = [form.image1, form.image2, form.image3]
+    .map(url => url.trim())
+    .filter(Boolean);
+
+  if (previewImages.length === 0) {
+    previewImages.push('https://placehold.co/600x400/f8fafc/4f46e5?text=Превью+картинки');
+  }
+
   return (
     <main>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <h1>{view === 'list' ? 'Админ-панель товаров' : editingId ? 'Редактирование карточки товара' : 'Создание новой карточки товара'}</h1>
         {view === 'list' && (
           <button className="primary nav-btn" onClick={() => { setForm(emptyForm); setEditingId(null); setView('edit'); }}>
-            ➕ Добавить новый товар
+            Добавить новый товар
           </button>
         )}
       </div>
@@ -103,70 +135,99 @@ export default function AdminProductsPage() {
               </tr>
             </thead>
             <tbody>
-              {products.map((product) => (
-                <tr
-                  key={product.id}
-                  onClick={() => edit(product)}
-                  style={{ cursor: 'pointer', transition: 'background 0.2s' }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                >
-                  <td>{product.id}</td>
-                  <td>
-                    <img
-                      src={product.imageUrl || 'https://placehold.co/600x400?text=No+Photo'}
-                      alt={product.name}
-                      style={{ width: '52px', height: '40px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #e2e8f0' }}
-                    />
-                  </td>
-                  <td style={{ fontWeight: '600', color: '#0f172a' }}>{product.name}</td>
-                  <td><span className="category" style={{ fontSize: '0.75rem', padding: '3px 9px' }}>{product.category}</span></td>
-                  <td style={{ fontWeight: '700' }}>{formatMoney(product.priceCents)}</td>
-                  <td>
-                    <span className={`stock ${product.stock > 0 ? 'ok' : 'empty'}`}>
-                      {product.stock} шт.
-                    </span>
-                  </td>
-                  <td className="table-actions">
-                    <button className="ghost small" onClick={(e) => { e.stopPropagation(); edit(product); }}>Изменить</button>
-                    <button className="danger small" onClick={(e) => remove(product.id, e)}>Удалить</button>
-                  </td>
-                </tr>
-              ))}
+              {products.map((product) => {
+                const firstImg = product.imageUrl ? product.imageUrl.split(',')[0].trim() : '';
+                return (
+                  <tr
+                    key={product.id}
+                    onClick={() => edit(product)}
+                    style={{ cursor: 'pointer', transition: 'background 0.2s' }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <td>{product.id}</td>
+                    <td>
+                      <img
+                        src={firstImg || 'https://placehold.co/600x400?text=No+Photo'}
+                        alt={product.name}
+                        style={{ width: '52px', height: '40px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #e2e8f0' }}
+                      />
+                    </td>
+                    <td style={{ fontWeight: '600', color: '#0f172a' }}>{product.name}</td>
+                    <td><span className="category" style={{ fontSize: '0.75rem', padding: '3px 9px' }}>{product.category}</span></td>
+                    <td style={{ fontWeight: '700' }}>{formatMoney(product.priceCents)}</td>
+                    <td>
+                      <span className={`stock ${product.stock > 0 ? 'ok' : 'empty'}`}>
+                        {product.stock} шт.
+                      </span>
+                    </td>
+                    <td className="table-actions">
+                      <button className="danger small" onClick={(e) => remove(product.id, e)}>Удалить</button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </section>
       ) : (
         <form onSubmit={submit}>
-          {/* Кнопка возврата к списку */}
           <button type="button" className="primary nav-btn" onClick={() => setView('list')} style={{ marginBottom: '28px', background: '#eef2ff', color: '#4f46e5', border: '2px solid #4f46e5', fontWeight: '700' }}>
             ← Назад к таблице товаров
           </button>
 
-          {/* Лейаут формы в виде ПОДРОБНОЙ КАРТОЧКИ ТОВАРА */}
           <div className="product-details-layout">
 
-            {/* Левая колонка: Интерактивное превью карусели */}
+            {/* Левая колонка: Превью карусели */}
             <div className="carousel-section">
               <div className="main-image">
-                <img src={form.imageUrl || 'https://placehold.co/600x400/f8fafc/4f46e5?text=Превью+картинки'} alt="Превью" />
+                <img src={previewImages[activePreviewImage] || previewImages[0]} alt="Превью" />
               </div>
-              <div className="thumbnails">
-                <img src={form.imageUrl || 'https://placehold.co/600x400?text=Превью'} alt="Ракурс 1" className="active" />
-                <img src="https://placehold.co/600x400/f8fafc/0f172a?text=Ракурс+2" alt="Ракурс 2" />
-                <img src="https://placehold.co/600x400/f8fafc/0f172a?text=Ракурс+3" alt="Ракурс 3" />
-              </div>
-              <div style={{ marginTop: '16px' }}>
-                <label style={{ fontWeight: '600', fontSize: '0.9rem', color: '#475569', display: 'block', marginBottom: '6px' }}>Ссылка на изображение товара (URL):</label>
-                <input
-                  placeholder="https://images.unsplash.com/..."
-                  value={form.imageUrl}
-                  onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
-                />
+
+              {previewImages.length > 1 && (
+                <div className="thumbnails">
+                  {previewImages.map((img, index) => (
+                    <img
+                      key={index}
+                      src={img}
+                      alt={`Ракурс ${index + 1}`}
+                      className={index === activePreviewImage ? 'active' : ''}
+                      onClick={() => setActivePreviewImage(index)}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* Ссылки на картинки */}
+              <div style={{ marginTop: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div>
+                  <label style={{ fontWeight: '600', fontSize: '0.85rem', color: '#475569', display: 'block', marginBottom: '4px' }}>Главная картинка товара (URL):</label>
+                  <input
+                    placeholder="https://images.unsplash.com/... (Главное фото)"
+                    value={form.image1}
+                    onChange={(e) => setForm({ ...form, image1: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontWeight: '600', fontSize: '0.85rem', color: '#475569', display: 'block', marginBottom: '4px' }}>Второе изображение карусели (URL):</label>
+                  <input
+                    placeholder="https://images.unsplash.com/... (Второй ракурс)"
+                    value={form.image2}
+                    onChange={(e) => setForm({ ...form, image2: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontWeight: '600', fontSize: '0.85rem', color: '#475569', display: 'block', marginBottom: '4px' }}>Третье изображение карусели (URL):</label>
+                  <input
+                    placeholder="https://images.unsplash.com/... (Третий ракурс)"
+                    value={form.image3}
+                    onChange={(e) => setForm({ ...form, image3: e.target.value })}
+                  />
+                </div>
               </div>
             </div>
 
-            {/* Правая колонка: Все поля подробной карточки */}
+            {/* Правая колонка: Характеристики */}
             <div className="product-info-section" style={{ gap: '16px', display: 'flex', flexDirection: 'column' }}>
               <div>
                 <label style={{ fontWeight: '600', fontSize: '0.9rem', color: '#475569', display: 'block', marginBottom: '6px' }}>Категория:</label>

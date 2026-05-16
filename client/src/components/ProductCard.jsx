@@ -11,7 +11,7 @@ export default function ProductCard({ product }) {
   const quantityInCart = cartItem ? cartItem.quantity : 0;
 
   const handleAdd = async (e) => {
-    e.preventDefault(); // Предотвращаем переход на страницу товара при клике по кнопке
+    e.preventDefault();
     setAdding(true);
     try {
       await addItem(product, quantityInCart + 1);
@@ -22,10 +22,14 @@ export default function ProductCard({ product }) {
 
   const isOutOfStock = product.stock <= 0 || quantityInCart >= product.stock;
 
+  // Берем первую картинку из строки для отображения в общем каталоге
+  const imageList = product.imageUrl ? product.imageUrl.split(',').map(url => url.trim()).filter(Boolean) : [];
+  const displayImage = imageList.length > 0 ? imageList[0] : 'https://placehold.co/600x400?text=Product';
+
   return (
     <article className="product-card">
       <Link to={`/products/${product.id}`} style={{ display: 'block', overflow: 'hidden' }}>
-        <img src={product.imageUrl || 'https://placehold.co/600x400?text=Product'} alt={product.name} />
+        <img src={displayImage} alt={product.name} />
       </Link>
       <div className="product-info">
         <span className="category">{product.category}</span>

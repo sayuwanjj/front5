@@ -33,10 +33,11 @@ export default function CatalogPage() {
 
   return (
     <main>
+      {/* Обновленная приветственная секция магазина */}
       <section className="hero">
         <div>
           <p className="eyebrow">Stripe + Inventory</p>
-          <h1>Интернет-магазин с оплатой и управлением остатками</h1>
+          <h1>sayuwanj market</h1>
           <p>Каталог, корзина, JWT-авторизация, история заказов и админ-панель в одном проекте.</p>
         </div>
       </section>

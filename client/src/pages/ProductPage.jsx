@@ -38,15 +38,17 @@ export default function ProductPage() {
         }
     };
 
-    const images = [
-        product.imageUrl || 'https://placehold.co/600x400/eef2ff/4f46e5?text=Main+Photo',
-        'https://placehold.co/600x400/f8fafc/0f172a?text=Side+View',
-        'https://placehold.co/600x400/f8fafc/0f172a?text=Back+View'
-    ];
+    // Парсим строку картинок из БД в массив
+    const images = product.imageUrl
+        ? product.imageUrl.split(',').map(url => url.trim()).filter(Boolean)
+        : [];
+
+    if (images.length === 0) {
+        images.push('https://placehold.co/600x400?text=No+Image+Available');
+    }
 
     return (
         <main className="product-page">
-            {/* Кнопка "Вернуться в каталог" стала крупной, заметной и акцентной */}
             <Link
                 to="/"
                 className="primary nav-btn"
@@ -69,22 +71,26 @@ export default function ProductPage() {
                 {/* Левая колонка: Карусель изображений */}
                 <div className="carousel-section">
                     <div className="main-image">
-                        <img src={images[activeImage]} alt={product.name} />
+                        <img src={images[activeImage] || images[0]} alt={product.name} />
                     </div>
-                    <div className="thumbnails">
-                        {images.map((img, index) => (
-                            <img
-                                key={index}
-                                src={img}
-                                alt={`Thumbnail ${index + 1}`}
-                                className={index === activeImage ? 'active' : ''}
-                                onClick={() => setActiveImage(index)}
-                            />
-                        ))}
-                    </div>
+
+                    {/* Показываем миниатюры только если картинок больше, чем 1 */}
+                    {images.length > 1 && (
+                        <div className="thumbnails">
+                            {images.map((img, index) => (
+                                <img
+                                    key={index}
+                                    src={img}
+                                    alt={`Thumbnail ${index + 1}`}
+                                    className={index === activeImage ? 'active' : ''}
+                                    onClick={() => setActiveImage(index)}
+                                />
+                            ))}
+                        </div>
+                    )}
                 </div>
 
-                {/* Правая колонка: Информация и покупка */}
+                {/* Правая колонка: Описание и добавление */}
                 <div className="product-info-section">
                     <span className="category">{product.category}</span>
                     <h1>{product.name}</h1>
