@@ -187,13 +187,16 @@ async function getOrderById(user, orderId, client = db) {
   return mapOrder(order, items);
 }
 
+// Обновленная функция вывода списка заказов
 async function listOrders(user) {
   const params = [];
   let where = '';
 
   if (user.role !== 'admin') {
     params.push(user.id);
-    where = 'WHERE user_id = $1';
+    where = 'WHERE user_id = $1'; // Обычный клиент видит все свои заказы (включая неоплаченные/отмененные)
+  } else {
+    where = "WHERE status = 'paid'"; // Администратор видит заказы всех пользователей, но только со статусом 'paid'
   }
 
   const result = await db.query(`SELECT * FROM orders ${where} ORDER BY created_at DESC`, params);
@@ -206,4 +209,89 @@ async function listOrders(user) {
   return orders;
 }
 
-module.exports = { createPaymentIntentForCart, confirmPaidOrder, getOrderById, listOrders, mapOrder, createStripeClient };
+async function resumePaymentIntent(user, orderId) {
+  const client = await db.connect();
+  try {
+    const orderResult = await client.query('SELECT * FROM orders WHERE id = $1', [orderId]);
+    if (orderResult.rowCount === 0) throw new HttpError(404, 'Заказ не найден');
+    const order = orderResult.rows[0];
+
+    if (order.user_id !== user.id && user.role !== 'admin') {
+      throw new HttpError(403, 'Нет доступа к заказу');
+    }
+
+    if (order.status === 'paid') {
+      throw new HttpError(400, 'Заказ уже оплачен');
+    }
+
+    if (!order.stripe_payment_intent_id) {
+      throw new HttpError(400, 'Платеж для этого заказа не найден');
+    }
+
+    const stripe = createStripeClient();
+    const paymentIntent = await stripe.paymentIntents.retrieve(order.stripe_payment_intent_id);
+
+    return {
+      orderId: order.id,
+      clientSecret: paymentIntent.client_secret,
+      totalCents: order.total_cents,
+      total: centsToMoney(order.total_cents),
+    };
+  } finally {
+    client.release();
+  }
+}
+
+async function cancelOrder(user, orderId) {
+  const client = await db.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const orderResult = await client.query('SELECT * FROM orders WHERE id = $1 FOR UPDATE', [orderId]);
+    if (orderResult.rowCount === 0) throw new HttpError(404, 'Заказ не найден');
+    const order = orderResult.rows[0];
+
+    if (order.user_id !== user.id && user.role !== 'admin') {
+      throw new HttpError(403, 'Нет доступа к заказу');
+    }
+
+    if (order.status === 'paid') {
+      throw new HttpError(400, 'Оплаченный заказ нельзя отменить');
+    }
+
+    if (order.status === 'cancelled') {
+      throw new HttpError(400, 'Заказ уже отменен');
+    }
+
+    if (order.stripe_payment_intent_id) {
+      const stripe = createStripeClient();
+      try {
+        await stripe.paymentIntents.cancel(order.stripe_payment_intent_id);
+      } catch (error) {
+        console.error('Stripe cancel error:', error.message);
+      }
+    }
+
+    await client.query(`UPDATE orders SET status = 'cancelled' WHERE id = $1`, [orderId]);
+    await client.query('COMMIT');
+
+    return getOrderById(user, orderId);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+module.exports = {
+  createPaymentIntentForCart,
+  confirmPaidOrder,
+  getOrderById,
+  listOrders,
+  mapOrder,
+  createStripeClient,
+  resumePaymentIntent,
+  cancelOrder
+};

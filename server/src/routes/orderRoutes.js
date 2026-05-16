@@ -2,7 +2,14 @@ const express = require('express');
 const asyncHandler = require('../utils/asyncHandler');
 const validate = require('../middleware/validate');
 const { authenticate } = require('../middleware/auth');
-const { createPaymentIntentForCart, confirmPaidOrder, listOrders, getOrderById } = require('../services/orderService');
+const {
+  createPaymentIntentForCart,
+  confirmPaidOrder,
+  listOrders,
+  getOrderById,
+  resumePaymentIntent,
+  cancelOrder
+} = require('../services/orderService');
 const { confirmOrderSchema, orderIdSchema } = require('../validators/orderSchemas');
 
 const router = express.Router();
@@ -23,6 +30,16 @@ router.post('/create-payment-intent', asyncHandler(async (req, res) => {
 
 router.post('/confirm', validate(confirmOrderSchema), asyncHandler(async (req, res) => {
   res.json({ order: await confirmPaidOrder(req.user, req.validated.body.paymentIntentId) });
+}));
+
+// Восстановление платежа для существующего неоплаченного заказа
+router.post('/:id/resume-payment', validate(orderIdSchema), asyncHandler(async (req, res) => {
+  res.json(await resumePaymentIntent(req.user, req.validated.params.id));
+}));
+
+// Отмена неоплаченного заказа
+router.post('/:id/cancel', validate(orderIdSchema), asyncHandler(async (req, res) => {
+  res.json({ order: await cancelOrder(req.user, req.validated.params.id) });
 }));
 
 module.exports = router;

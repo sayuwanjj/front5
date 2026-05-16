@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../api/client';
 import { formatMoney } from '../utils/cartStorage';
 
@@ -14,6 +15,26 @@ export default function OrdersPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  const handleCancel = async (orderId) => {
+    if (!window.confirm('Вы уверены, что хотите отменить этот заказ?')) return;
+
+    try {
+      await api.post(`/orders/${orderId}/cancel`);
+      // Обновляем статус заказа локально, чтобы не перезагружать страницу
+      setOrders(orders.map(o => o.id === orderId ? { ...o, status: 'cancelled' } : o));
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const getStatusText = (status) => {
+    switch (status) {
+      case 'paid': return 'Оплачен';
+      case 'cancelled': return 'Отменён';
+      default: return 'Ожидает оплаты';
+    }
+  };
+
   return (
     <main>
       <h1>История заказов</h1>
@@ -27,7 +48,24 @@ export default function OrdersPage() {
                 <h2>Заказ #{order.id}</h2>
                 <p>{new Date(order.createdAt).toLocaleString('ru-RU')}</p>
               </div>
-              <span className={`status ${order.status}`}>{order.status}</span>
+
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <span className={`status ${order.status}`}>
+                  {getStatusText(order.status)}
+                </span>
+
+                {order.status === 'pending_payment' && (
+                  <>
+                    <Link to={`/checkout?orderId=${order.id}`} className="primary small">
+                      Оплатить
+                    </Link>
+                    <button className="danger small" onClick={() => handleCancel(order.id)}>
+                      Отменить
+                    </button>
+                  </>
+                )}
+              </div>
+
             </div>
             <ul>
               {order.items.map((item) => (

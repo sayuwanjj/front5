@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
 import { loadStripe } from '@stripe/stripe-js';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../api/client';
 import { useCart } from '../context/CartContext';
 import { formatMoney } from '../utils/cartStorage';
@@ -64,10 +64,21 @@ export default function CheckoutPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
+  // Достаем ID заказа из ссылки (если он есть)
+  const [searchParams] = useSearchParams();
+  const orderId = searchParams.get('orderId');
+
   useEffect(() => {
     const createIntent = async () => {
       try {
-        const response = await api.post('/orders/create-payment-intent');
+        let response;
+        if (orderId) {
+          // Если пришли со страницы заказов — восстанавливаем платеж
+          response = await api.post(`/orders/${orderId}/resume-payment`);
+        } else {
+          // Иначе создаем новый заказ из текущей корзины
+          response = await api.post('/orders/create-payment-intent');
+        }
         setOrderInfo(response.data);
       } catch (err) {
         setError(err.message);
@@ -76,9 +87,9 @@ export default function CheckoutPage() {
       }
     };
     createIntent();
-  }, []);
+  }, [orderId]);
 
-  if (loading) return <main><p>Создание платежа...</p></main>;
+  if (loading) return <main><p>Загрузка платежа...</p></main>;
   if (error) return <main><div className="alert error">{error}</div></main>;
 
   return (

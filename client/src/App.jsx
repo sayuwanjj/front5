@@ -8,6 +8,7 @@ import CartPage from './pages/CartPage';
 import CheckoutPage from './pages/CheckoutPage';
 import OrdersPage from './pages/OrdersPage';
 import AdminProductsPage from './pages/AdminProductsPage';
+import ProductPage from './pages/ProductPage'; // <-- Добавили импорт
 
 export default function App() {
   return (
@@ -15,6 +16,7 @@ export default function App() {
       <Navbar />
       <Routes>
         <Route path="/" element={<CatalogPage />} />
+        <Route path="/products/:id" element={<ProductPage />} /> {/* <-- Добавили маршрут */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/cart" element={<CartPage />} />

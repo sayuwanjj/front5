@@ -10,13 +10,16 @@ export default function AdminProductsPage() {
   const [editingId, setEditingId] = useState(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [view, setView] = useState('list'); // Режимы: 'list' (таблица) или 'edit' (карточка)
 
   const load = async () => {
     const response = await api.get('/products');
     setProducts(response.data.products);
   };
 
-  useEffect(() => { load().catch((err) => setError(err.message)); }, []);
+  useEffect(() => {
+    load().catch((err) => setError(err.message));
+  }, []);
 
   const submit = async (event) => {
     event.preventDefault();
@@ -27,13 +30,14 @@ export default function AdminProductsPage() {
     try {
       if (editingId) {
         await api.put(`/products/${editingId}`, payload);
-        setMessage('Товар обновлён');
+        setMessage('Товар успешно обновлён');
       } else {
         await api.post('/products', payload);
-        setMessage('Товар создан');
+        setMessage('Товар успешно создан');
       }
       setForm(emptyForm);
       setEditingId(null);
+      setView('list'); // Возвращаемся к таблице после сохранения
       await load();
     } catch (err) {
       setError(err.message);
@@ -51,9 +55,13 @@ export default function AdminProductsPage() {
       imageUrl: product.imageUrl || '',
       isActive: product.isActive,
     });
+    setView('edit'); // Переключаемся в режим подробной карточки
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const remove = async (id) => {
+  const remove = async (id, event) => {
+    event.stopPropagation(); // Изолируем клик, чтобы не открывалось редактирование строки
+    if (!window.confirm('Вы уверены, что хотите удалить этот товар?')) return;
     setError('');
     try {
       await api.delete(`/products/${id}`);
@@ -65,49 +73,139 @@ export default function AdminProductsPage() {
 
   return (
     <main>
-      <h1>Админ-панель товаров</h1>
-      {error && <div className="alert error">{error}</div>}
-      {message && <div className="alert success">{message}</div>}
-      <form className="admin-form" onSubmit={submit}>
-        <input placeholder="Название" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
-        <input placeholder="Категория" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} required />
-        <input placeholder="Цена" type="number" step="0.01" min="0" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} required />
-        <input placeholder="Остаток" type="number" min="0" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} required />
-        <input placeholder="URL изображения" value={form.imageUrl} onChange={(e) => setForm({ ...form, imageUrl: e.target.value })} />
-        <textarea placeholder="Описание" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
-        <button className="primary">{editingId ? 'Сохранить' : 'Создать товар'}</button>
-        {editingId && <button type="button" className="ghost" onClick={() => { setEditingId(null); setForm(emptyForm); }}>Отмена</button>}
-      </form>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+        <h1>{view === 'list' ? 'Админ-панель товаров' : editingId ? 'Редактирование карточки товара' : 'Создание новой карточки товара'}</h1>
+        {view === 'list' && (
+          <button className="primary nav-btn" onClick={() => { setForm(emptyForm); setEditingId(null); setView('edit'); }}>
+            ➕ Добавить новый товар
+          </button>
+        )}
+      </div>
 
-      <section className="admin-table">
-        <table>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Название</th>
-              <th>Категория</th>
-              <th>Цена</th>
-              <th>Остаток</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {products.map((product) => (
-              <tr key={product.id}>
-                <td>{product.id}</td>
-                <td>{product.name}</td>
-                <td>{product.category}</td>
-                <td>{formatMoney(product.priceCents)}</td>
-                <td>{product.stock}</td>
-                <td className="table-actions">
-                  <button className="ghost" onClick={() => edit(product)}>Редактировать</button>
-                  <button className="danger" onClick={() => remove(product.id)}>Удалить</button>
-                </td>
+      {error && <div className="alert error" style={{ marginBottom: '20px' }}>{error}</div>}
+      {message && <div className="alert success" style={{ marginBottom: '20px' }}>{message}</div>}
+
+      {view === 'list' ? (
+        <section className="admin-table">
+          <p style={{ color: '#64748b', fontSize: '0.95rem', marginBottom: '16px' }}>
+            Кликните в любом месте на строку товара, чтобы открыть его подробную карточку для редактирования.
+          </p>
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Превью</th>
+                <th>Название</th>
+                <th>Категория</th>
+                <th>Цена</th>
+                <th>Остаток</th>
+                <th style={{ textAlign: 'right' }}>Действия</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
+            </thead>
+            <tbody>
+              {products.map((product) => (
+                <tr
+                  key={product.id}
+                  onClick={() => edit(product)}
+                  style={{ cursor: 'pointer', transition: 'background 0.2s' }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                >
+                  <td>{product.id}</td>
+                  <td>
+                    <img
+                      src={product.imageUrl || 'https://placehold.co/600x400?text=No+Photo'}
+                      alt={product.name}
+                      style={{ width: '52px', height: '40px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #e2e8f0' }}
+                    />
+                  </td>
+                  <td style={{ fontWeight: '600', color: '#0f172a' }}>{product.name}</td>
+                  <td><span className="category" style={{ fontSize: '0.75rem', padding: '3px 9px' }}>{product.category}</span></td>
+                  <td style={{ fontWeight: '700' }}>{formatMoney(product.priceCents)}</td>
+                  <td>
+                    <span className={`stock ${product.stock > 0 ? 'ok' : 'empty'}`}>
+                      {product.stock} шт.
+                    </span>
+                  </td>
+                  <td className="table-actions">
+                    <button className="ghost small" onClick={(e) => { e.stopPropagation(); edit(product); }}>Изменить</button>
+                    <button className="danger small" onClick={(e) => remove(product.id, e)}>Удалить</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      ) : (
+        <form onSubmit={submit}>
+          {/* Кнопка возврата к списку */}
+          <button type="button" className="primary nav-btn" onClick={() => setView('list')} style={{ marginBottom: '28px', background: '#eef2ff', color: '#4f46e5', border: '2px solid #4f46e5', fontWeight: '700' }}>
+            ← Назад к таблице товаров
+          </button>
+
+          {/* Лейаут формы в виде ПОДРОБНОЙ КАРТОЧКИ ТОВАРА */}
+          <div className="product-details-layout">
+
+            {/* Левая колонка: Интерактивное превью карусели */}
+            <div className="carousel-section">
+              <div className="main-image">
+                <img src={form.imageUrl || 'https://placehold.co/600x400/f8fafc/4f46e5?text=Превью+картинки'} alt="Превью" />
+              </div>
+              <div className="thumbnails">
+                <img src={form.imageUrl || 'https://placehold.co/600x400?text=Превью'} alt="Ракурс 1" className="active" />
+                <img src="https://placehold.co/600x400/f8fafc/0f172a?text=Ракурс+2" alt="Ракурс 2" />
+                <img src="https://placehold.co/600x400/f8fafc/0f172a?text=Ракурс+3" alt="Ракурс 3" />
+              </div>
+              <div style={{ marginTop: '16px' }}>
+                <label style={{ fontWeight: '600', fontSize: '0.9rem', color: '#475569', display: 'block', marginBottom: '6px' }}>Ссылка на изображение товара (URL):</label>
+                <input
+                  placeholder="https://images.unsplash.com/..."
+                  value={form.imageUrl}
+                  onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
+                />
+              </div>
+            </div>
+
+            {/* Правая колонка: Все поля подробной карточки */}
+            <div className="product-info-section" style={{ gap: '16px', display: 'flex', flexDirection: 'column' }}>
+              <div>
+                <label style={{ fontWeight: '600', fontSize: '0.9rem', color: '#475569', display: 'block', marginBottom: '6px' }}>Категория:</label>
+                <input placeholder="Например: electronics, office, accessories..." value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} required />
+              </div>
+
+              <div>
+                <label style={{ fontWeight: '600', fontSize: '0.9rem', color: '#475569', display: 'block', marginBottom: '6px' }}>Название товара:</label>
+                <input placeholder="Введите название" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required style={{ fontSize: '1.2rem', fontWeight: '700' }} />
+              </div>
+
+              <div>
+                <label style={{ fontWeight: '600', fontSize: '0.9rem', color: '#475569', display: 'block', marginBottom: '6px' }}>Цена ($):</label>
+                <input placeholder="0.00" type="number" step="0.01" min="0" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} required style={{ fontSize: '1.1rem', fontWeight: '700', color: '#4f46e5' }} />
+              </div>
+
+              <div className="description" style={{ margin: 0 }}>
+                <label style={{ fontWeight: '600', fontSize: '0.9rem', color: '#475569', display: 'block', marginBottom: '6px' }}>Описание характеристик:</label>
+                <textarea placeholder="Напишите здесь подробную информацию о товаре..." value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} style={{ minHeight: '130px', lineHeight: '1.5' }} />
+              </div>
+
+              <div>
+                <label style={{ fontWeight: '600', fontSize: '0.9rem', color: '#475569', display: 'block', marginBottom: '6px' }}>Остаток инвентаря на складе (шт):</label>
+                <input placeholder="0" type="number" min="0" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} required />
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px', marginTop: '20px' }}>
+                <button type="submit" className="primary full large-btn">
+                  {editingId ? 'Сохранить изменения' : 'Опубликовать товар'}
+                </button>
+                <button type="button" className="ghost large-btn" onClick={() => setView('list')} style={{ width: '160px' }}>
+                  Отмена
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </form>
+      )}
     </main>
   );
 }
